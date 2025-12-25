@@ -1,10 +1,10 @@
+import pickle
 import numpy as np
 import numpy.typing as npt
-import matplotlib.pyplot as plt
 
 from models import Planet, Forces
-from visualizer import animate_orbits
 from ephemeris import get_j2000_state
+from plot_sim import plot
 
 G = 6.674e-11
 C = 299.8e6
@@ -23,10 +23,12 @@ def NewtonF(pln1: Planet, pln2: Planet) -> npt.NDArray[np.float64]:
 
 def EinsteinF(pln1: Planet, pln2: Planet) -> npt.NDArray[np.float64]:
   if pln1.name != "Sun" or pln2.name != "Mercury":
-        return np.zeros_like(DIM, dtype=np.float64)
+    return np.zeros_like(DIM, dtype=np.float64)
   
-  r = pln2.r - pln1.r
-  return (2 * G * pln1.mass / (C * mod(r) ** 2)) ** 2 * r
+  r_vec = pln2.r - pln1.r
+  r_len = mod(r_vec)
+  
+  return - (3 * G * pln1.mass * (mod(np.cross(pln2.r, pln2.u))**2)) / (C**2 * r_len**5) * r_vec
 
 ###########################
 
@@ -49,21 +51,13 @@ def move_calculate(dt, planets: list[Planet], forces: Forces) -> None:
     acc_calculate(planet, planets, forces)
 
   for planet in planets:
-    planet.u += planet.a * dt / 2 
+    planet.u += planet.a * dt / 2
 
-def plot_static(planets: list[Planet]) -> None:
-  plt.figure(figsize=(8, 8))
-  for planet in planets:
-      plt.plot(planet.path_x, planet.path_y, color=planet.color, label=planet.name)
-      plt.plot(planet.r[0], planet.r[1], 'o', color=planet.color)
-
-  plt.title("Орбита Меркурия (Ньютоновская)")
-  plt.xlabel("X (метры)")
-  plt.ylabel("Y (метры)")
-  plt.axis('equal')
-  plt.legend()
-  plt.grid(True)
-  plt.savefig('./assets/sim.png')
+def save_data(planets: list[Planet], filename: str = "assets/simulation_data.pkl"):
+    """Сохраняет список объектов планет в бинарный файл"""
+    with open(filename, 'wb') as f:
+        pickle.dump(planets, f)
+    print(f"Data successfully saved to {filename}")
 
 def main() -> None:
   planets_names = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
@@ -96,7 +90,7 @@ def main() -> None:
   t = 0
   # Симулируем 1 Земной год (Меркурий успеет сделать ~4 оборота)
   # Если поставить больше, расчет будет идти дольше
-  total_time = 1.0 * 365 * 24 * 3600 
+  total_time = 1.0 * 365 * 24 * 3600 * 10
 
   print(f"Start simulation: {total_time/3600/24/365:.2f} Earth years...")
 
@@ -119,21 +113,7 @@ def main() -> None:
   print("Simulation finished.")
   
   # --- Визуализация ---
-  plot_static(all_planets)
-  
-  # ВАЖНО: Для анимации берем только внутренние планеты + Юпитер.
-  # Если рисовать Нептун, Меркурий станет невидимым из-за зума.
-  # Индексы: 0-Sun, 1-Mercury, 2-Venus, 3-Earth, 4-Mars, 5-Jupiter
-  inner_system = all_planets[:4] 
-  
-  print(f"Rendering animation for Inner Solar System: {", ".join([pln.name for pln in inner_system])}")
-  animate_orbits(
-      inner_system, 
-      filename="./assets/orbit.gif", 
-      fps=30, 
-      stride=24,   # Берем кадр раз в сутки (так как dt=1 час)
-      trace_length=-1
-  )
+  plot(all_planets)
 
 if __name__ == "__main__":
   main()

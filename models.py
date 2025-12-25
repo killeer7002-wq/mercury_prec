@@ -1,31 +1,33 @@
 from collections.abc import Callable
-from typing import Union
+from typing import Optional
 import numpy as np
 import numpy.typing as npt
 
 __all__ = ["Planet", "Forces"]
 
-class _Missing:
-    pass
-
-MISSING = _Missing()
-
 class Planet:
+
+  r: npt.NDArray[np.float64]
+  u: npt.NDArray[np.float64]
+  a: npt.NDArray[np.float64]
+
   def __init__(self,
                mass: float,
                r: npt.NDArray[np.float64],
-               u: Union[npt.NDArray[np.float64], _Missing] = MISSING,
-               a: Union[npt.NDArray[np.float64], _Missing] = MISSING,
+               u: Optional[npt.NDArray[np.float64]] = None,
+               a: Optional[npt.NDArray[np.float64]] = None,
                name: str = "unknown",
                color: str = "red",):
     self.mass = mass
     self.r = r
-    self.u = u
-    if u is MISSING:
+    if u is None:
       self.u = np.zeros_like(r, dtype=np.float64)
-    self.a = a
-    if a is MISSING:
+    else:
+      self.u = u
+    if a is None:
       self.a = np.zeros_like(r, dtype=np.float64)
+    else:
+      self.a = a
     self.name = name
     self.color = color
 

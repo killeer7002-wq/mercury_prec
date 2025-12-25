@@ -49,7 +49,7 @@ def get_state_from_kepler(a_au, e, i_deg, w_deg, Omega_deg, M_deg):
     r_mag = a * (1 - e * cosE)
     
     vx_orb = - (n * a**2 / r_mag) * sinE
-    vy_orb =   (n * a * np.sqrt(1 - e**2) / r_mag) * cosE
+    vy_orb =   (n * a**2 * np.sqrt(1 - e**2) / r_mag) * cosE
     
     # 3. Поворот в эклиптическую систему координат (3D поворот)
     # Матрица поворота R = Rz(-O) * Rx(-i) * Rz(-w)
