@@ -42,9 +42,9 @@ def plot(all_planets: list[Planet],
   animate_orbits(
       inner_system, 
       filename=filename_gif, 
-      fps=60, 
-      stride=24 * 10,   # Берем кадр раз в сутки (так как dt=1 час)
-      trace_length=-1
+      fps=120, 
+      stride=24 * 5,   # Берем кадр раз в сутки (так как dt=1 час)
+      trace_length=400
   )
 
 if __name__ == "__main__":

@@ -80,6 +80,17 @@ def main() -> None:
     )
     all_planets.append(p)
 
+  # --- ФИКС ДРЕЙФА СОЛНЦА ---
+  # Считаем суммарный импульс всех планет (P = m * v)
+  total_momentum = np.zeros_like(DIM, dtype=np.float64)
+  for p in all_planets[1:]:
+      total_momentum += p.mass * p.u
+  
+  # Придаем Солнцу скорость в обратную сторону, чтобы сумма была 0
+  sun.u = - total_momentum / sun.mass
+  
+  print(f"Sun correction velocity: {sun.u} m/s")
+
   # --- Настройка симуляции ---
   forces = Forces(DIM)
   forces.registrate(NewtonF)
@@ -111,6 +122,8 @@ def main() -> None:
           print(f"Progress: {int(t/total_time*100)}%")
   
   print("Simulation finished.")
+
+  save_data(all_planets)
   
   # --- Визуализация ---
   plot(all_planets)
