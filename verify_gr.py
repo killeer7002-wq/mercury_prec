@@ -1,4 +1,4 @@
-from utils import load_data
+from utils import load_data_binary
 import numpy as np
 import matplotlib.pyplot as plt
 from models import Planet
@@ -24,7 +24,7 @@ def get_relative_vectors(mercury, sun):
     return r_rel, v_rel
 
 def analyze_precession():
-    planets = load_data()
+    planets = load_data_binary("assets/data_bin")
     mercury = next(p for p in planets if p.name == "Mercury")
     sun = next(p for p in planets if p.name == "Sun")
     
@@ -58,23 +58,30 @@ def analyze_precession():
     print("="*40 + "\n")
 
     # График
-    plt.style.use('default') # Светлая тема для наглядности
+    plt.style.use('default')
     plt.figure(figsize=(10, 6), dpi=100)
     plt.grid(True, linestyle='--', alpha=0.5)
     
-    plt.plot(time_years, delta_angles, color='gray', alpha=0.3, label='Oscillation')
+    # ОПТИМИЗАЦИЯ 1: Рисуем каждую 100-ю точку для "шума", иначе виснет
+    step = 100 
+    plt.plot(time_years[::step], delta_angles[::step], color='gray', alpha=0.3, label='Oscillation')
+    
+    # Линии тренда рисуем целиком (они прямые, там всего 2 точки по сути)
     plt.plot(time_years, slope * time_years + intercept, color='red', linewidth=2, label='Simulation')
     plt.plot(time_years, (theory_rate/100)*time_years + intercept, color='blue', linestyle='--', label='Theory')
 
     plt.title(f'Mercury Perihelion Precession (Exact Data)', fontsize=14)
     plt.xlabel('Time (Years)')
     plt.ylabel('Shift (arcsec)')
-    plt.legend()
+    
+    # ОПТИМИЗАЦИЯ 2: Явно задаем место легенды, чтобы не искал "best"
+    plt.legend(loc='upper left') 
     
     info = f"Result: {measured_rate:.1f}\"/cy\nTarget: {theory_rate:.1f}\"/cy"
-    plt.gca().text(0.02, 0.95, info, transform=plt.gca().transAxes,
+    plt.gca().text(0.02, 0.50, info, transform=plt.gca().transAxes,
                    bbox=dict(facecolor='white', alpha=0.9, edgecolor='gray'))
 
+    print("Saving plot...")
     plt.savefig('assets/scientific_proof.png')
     print("Graph saved.")
 

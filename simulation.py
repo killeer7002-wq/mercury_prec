@@ -26,7 +26,7 @@ def EinsteinF(pln1: Planet, pln2: Planet) -> npt.NDArray[np.float64]:
 
     v_vec = pln2.u - pln1.u
 
-    L_vec = np.cross(r_vec, v_vec)
+    L_vec = np.cross(r_vec, v_vec).astype(np.float64)
     L_sq = mod(L_vec)**2
 
     prefactor = (3 * G * pln1.mass * L_sq) / (C**2 * r_len**5)
@@ -102,7 +102,7 @@ def main() -> None:
 
   # dt = 1 час. Для Меркурия это ок, для Нептуна это очень детально.
   t = 0
-  total_time = 1.0 * 365 * 24 * 3600 * 20
+  total_time = 1.0 * 365 * 24 * 3600 * YEARS_SIM
 
   print(f"Start simulation: {total_time/3600/24/365:.2f} Earth years...")
 

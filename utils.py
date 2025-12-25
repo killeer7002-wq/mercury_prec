@@ -2,8 +2,167 @@ import csv
 import json
 import os
 import numpy as np
-
+from concurrent.futures import ProcessPoolExecutor
 from models import Planet
+
+# --- НОВАЯ БИНАРНАЯ ЛОГИКА ---
+
+def load_data_binary(folder: str = "assets/data_bin") -> list[Planet]:
+    """
+    Загружает данные из .npy.
+    Использует Memory Mapping (mmap), поэтому работает мгновенно 
+    и не тратит оперативную память, даже если файл весит 100 ГБ.
+    """
+    manifest_path = os.path.join(folder, "system_manifest.json")
+    if not os.path.exists(manifest_path):
+        raise FileNotFoundError(f"Manifest not found: {manifest_path}")
+
+    print(f"Loading binary data from {folder} (mmap mode)...")
+    
+    # 1. Загружаем метаданные
+    with open(manifest_path, 'r', encoding='utf-8') as f:
+        metadata = json.load(f)
+    
+    # 2. Открываем бинарные файлы в режиме 'только чтение' (как виртуальную память)
+    # Формат на диске: (Planets, Steps, 3)
+    try:
+        hist_pos = np.load(os.path.join(folder, "positions.npy"), mmap_mode='r')
+        hist_vel = np.load(os.path.join(folder, "velocities.npy"), mmap_mode='r')
+    except FileNotFoundError:
+        raise FileNotFoundError("Binary .npy files missing! Run simulation first.")
+
+    planets = []
+    
+    # 3. Собираем объекты
+    for i, meta in enumerate(metadata):
+        # Восстанавливаем параметры планеты
+        r_init = np.array(meta.get("last_r", [0,0,0]), dtype=np.float64)
+        u_init = np.array(meta.get("last_u", [0,0,0]), dtype=np.float64)
+        
+        p = Planet(
+            mass=meta["mass"],
+            r=r_init, # Это конечное положение, но для анализа пойдет
+            u=u_init,
+            name=meta["name"],
+            color=meta["color"]
+        )
+        
+        # ВАЖНО: Вместо списков подсовываем срезы numpy-массива.
+        # Это не копирует данные! Это просто ссылки на файл.
+        # p.path_x теперь ведет себя как очень длинный массив.
+        p.path_x = hist_pos[i, :, 0]
+        p.path_y = hist_pos[i, :, 1]
+        p.path_z = hist_pos[i, :, 2]
+        
+        p.path_vx = hist_vel[i, :, 0]
+        p.path_vy = hist_vel[i, :, 1]
+        p.path_vz = hist_vel[i, :, 2]
+        
+        planets.append(p)
+        
+    print(f"Loaded {len(planets)} planets.")
+    return planets
+
+def save_data_binary(planets_meta: list[dict], hist_pos: np.ndarray, hist_vel: np.ndarray, folder: str = "assets/data_bin"):
+    """
+    Сохраняет данные в бинарном формате .npy (мгновенная запись).
+    """
+    os.makedirs(folder, exist_ok=True)
+    print(f"Saving BINARY data to {folder}/ ...")
+
+    # Транспонируем, если пришло (Steps, Planets, 3) -> (Planets, Steps, 3)
+    if hist_pos.shape[0] != len(planets_meta):
+        hist_pos = np.transpose(hist_pos, (1, 0, 2))
+        hist_vel = np.transpose(hist_vel, (1, 0, 2))
+
+    # Сохраняем огромные массивы одним куском (это ОЧЕНЬ быстро)
+    # Формат: (Planets, Steps, 3)
+    np.save(os.path.join(folder, "positions.npy"), hist_pos)
+    np.save(os.path.join(folder, "velocities.npy"), hist_vel)
+
+    # Сохраняем метаданные
+    with open(os.path.join(folder, "system_manifest.json"), 'w', encoding='utf-8') as f:
+        json.dump(planets_meta, f, indent=2)
+        
+    print(f"Saved binary data for {len(planets_meta)} planets.")
+
+def _write_planet_csv(args):
+    """
+    Вспомогательная функция для записи одного файла в отдельном процессе.
+    """
+    filename, pos_data, vel_data, header = args
+    
+    # Объединяем позиции и скорости: (N, 3) + (N, 3) -> (N, 6)
+    # Это дешевая операция, так как создает view или копию только для одной планеты
+    full_data = np.hstack((pos_data, vel_data))
+    
+    # np.savetxt работает быстрее циклов Python. 
+    # fmt='%.6e' — научная нотация, достаточно 6 знаков (микроны для планет), это быстрее форматировать.
+    np.savetxt(
+        filename, 
+        full_data, 
+        delimiter=',', 
+        header=header, 
+        comments='', # Чтобы header не начинался с #
+        fmt='%.6e' 
+    )
+    return filename
+
+def save_data_from_arrays(
+    planets_meta: list[dict], 
+    hist_pos: np.ndarray, 
+    hist_vel: np.ndarray, 
+    folder: str = "assets/data"
+):
+    """
+    Быстрое сохранение результатов numpy-симуляции.
+    
+    Args:
+        planets_meta: Список словарей с метаданными (имя, цвет, масса...)
+        hist_pos: Массив (Steps, Planets, 3) или (Planets, Steps, 3)
+        hist_vel: Массив (Steps, Planets, 3)
+        folder: Папка назначения
+    """
+    os.makedirs(folder, exist_ok=True)
+    print(f"Preparing to save data to {folder}/ ...")
+
+    # 1. Проверяем размерность. Если (Steps, Planets, 3), транспонируем в (Planets, Steps, 3)
+    # чтобы было легко брать срезы по планетам.
+    if hist_pos.shape[0] != len(planets_meta):
+        # Значит первый dim — это steps
+        hist_pos = np.transpose(hist_pos, (1, 0, 2))
+        hist_vel = np.transpose(hist_vel, (1, 0, 2))
+
+    tasks = []
+    
+    # 2. Формируем задачи для параллельной записи
+    for i, meta in enumerate(planets_meta):
+        name = meta['name']
+        csv_filename = f"{name}.csv"
+        csv_path = os.path.join(folder, csv_filename)
+        
+        # Обновляем имя файла в метаданных
+        meta['csv_file'] = csv_filename
+        
+        # Данные конкретной планеты
+        p_pos = hist_pos[i]
+        p_vel = hist_vel[i]
+        
+        tasks.append((csv_path, p_pos, p_vel, "x,y,z,vx,vy,vz"))
+
+    # 3. Пишем файлы параллельно
+    # Используем ProcessPoolExecutor, чтобы обойти GIL и загрузить все ядра CPU форматированием текста
+    print(f"Writing CSVs in parallel...")
+    with ProcessPoolExecutor() as executor:
+        results = list(executor.map(_write_planet_csv, tasks))
+        
+    # 4. Сохраняем манифест (JSON)
+    # Нам нужно сохранить метаданные, но у нас нет объектов Planet. 
+    # Используем переданный список словарей.
+    with open(os.path.join(folder, "system_manifest.json"), 'w', encoding='utf-8') as f:
+        json.dump(planets_meta, f, indent=2)
+
+    print(f"Successfully saved {len(results)} files.")
 
 def save_data(planets: list[Planet], folder: str = "assets/data"):
     """Сохраняет данные в CSV (траектории) и JSON (свойства планет)"""

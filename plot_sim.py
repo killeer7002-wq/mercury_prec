@@ -1,4 +1,4 @@
-from utils import load_data
+from utils import load_data_binary
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -42,4 +42,4 @@ def plot(all_planets: list[Planet],
   )
 
 if __name__ == "__main__":
-  plot(load_data())
+  plot(load_data_binary("assets/data_bin"))

@@ -1,4 +1,5 @@
 .*
+data_bin
 *.csv
 *.json
 *.pkl
