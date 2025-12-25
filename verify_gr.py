@@ -3,10 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from models import Planet
 
-# Константы для расчетов
+# --- НАСТРОЙКИ ---
+# ВАЖНО: Это число должно совпадать с dt в simulation.py!
+DT = 600  # Если в симуляции был 1 час, ставьте 3600. Если 600 - ставьте 600.
+
+# Константы
 G = 6.674e-11
 M_SUN = 1.989e30
-ARCSEC_PER_RAD = 206265 # Сколько угловых секунд в радиане
+ARCSEC_PER_RAD = 206265 # Угловых секунд в радиане
 
 def load_data(filename: str = "assets/simulation_data.pkl") -> list[Planet]:
     with open(filename, 'rb') as f:
@@ -14,21 +18,10 @@ def load_data(filename: str = "assets/simulation_data.pkl") -> list[Planet]:
     return planets
 
 def calculate_eccentricity_vector(r, v, mu):
-    """
-    Считает вектор эксцентриситета (Рунге-Ленца) для каждого момента времени.
-    e = (1/mu) * ((v x h) - mu * (r/|r|)), где h = r x v
-    Показывает направление на перигелий.
-    """
-    # r и v - массивы формы (N, 3)
+    """Считает вектор Рунге-Ленца (направление на перигелий)"""
     dist = np.linalg.norm(r, axis=1)[:, np.newaxis]
-    
-    # Удельный угловой момент h = r x v
     h = np.cross(r, v)
-    
-    # v x h
     v_cross_h = np.cross(v, h)
-    
-    # Формула вектора Лапласа-Рунге-Ленца
     e_vec = (v_cross_h / mu) - (r / dist)
     return e_vec
 
@@ -36,88 +29,78 @@ def analyze_precession():
     planets = load_data()
     mercury = next(p for p in planets if p.name == "Mercury")
     
-    print("Analyzing Mercury data...")
+    print(f"Analyzing Mercury data with dt={DT}s...")
     
-    # Преобразуем списки в numpy массивы (N, 3)
-    # simulation.py сохраняет path_x и path_y. Если вы перешли на 3D, нужно проверить path_z
-    # Предположим пока 2D данные в path_x, path_y, заполним z нулями
-    
+    # 1. Подготовка данных
     rx = np.array(mercury.path_x)
     ry = np.array(mercury.path_y)
-    rz = np.zeros_like(rx)
+    rz = np.zeros_like(rx) # Если симуляция была 2D
     
-    # Нам нужны скорости. 
-    # ВНИМАНИЕ: simulation.py по умолчанию сохраняет только ПУТЬ (r), но не скорость (u) на каждом шаге.
-    # Чтобы посчитать вектор эксцентриситета точно, нам нужны скорости.
-    # Мы можем восстановить их численно: v = (r(t+1) - r(t-1)) / 2dt
-    # Или просто (r(i+1) - r(i)) / dt
-    
-    dt = 600 # Тот же, что в симуляции! ВАЖНО УКАЗАТЬ ВЕРНЫЙ
-    
-    # Численная производная для скорости
-    vx = np.gradient(rx, dt)
-    vy = np.gradient(ry, dt)
+    # 2. Восстановление скоростей (V = dR / dt)
+    vx = np.gradient(rx, DT)
+    vy = np.gradient(ry, DT)
     vz = np.zeros_like(vx)
     
     r = np.stack([rx, ry, rz], axis=1)
     v = np.stack([vx, vy, vz], axis=1)
     
-    # Считаем вектор эксцентриситета
+    # 3. Расчет угла перигелия
     e_vecs = calculate_eccentricity_vector(r, v, G * M_SUN)
-    
-    # Угол вектора (аргумент перигелия)
     angles_rad = np.arctan2(e_vecs[:, 1], e_vecs[:, 0])
-    
-    # "Разворачиваем" фазу, чтобы не было скачков 360->0
     angles_unwrap = np.unwrap(angles_rad)
     
-    # Переводим в угловые секунды (смещение от начала)
-    # Вычитаем начальный угол, чтобы график шел из 0
+    # Перевод в угловые секунды (смещение от начала)
     delta_angles = (angles_unwrap - angles_unwrap[0]) * ARCSEC_PER_RAD
     
     # Время в годах
-    time_years = np.arange(len(delta_angles)) * dt / (365*24*3600)
+    time_years = np.arange(len(delta_angles)) * DT / (365*24*3600)
     
-    # --- СТРОИМ ГРАФИК ---
-    plt.figure(figsize=(10, 6))
-    plt.style.use('dark_background')
+    # 4. Визуализация (Стиль "Научная статья")
+    plt.style.use('default') # Светлая тема
+    plt.figure(figsize=(10, 7), dpi=120)
+    plt.grid(True, linestyle='--', alpha=0.5)
     
-    # Рисуем сырые данные (они будут шуметь из-за осцилляций орбиты)
-    plt.plot(time_years, delta_angles, color='cyan', alpha=0.3, label='Raw Data (Oscillating)')
+    # --- Сырые данные (Oscillations) ---
+    plt.plot(time_years, delta_angles, color='#b0bec5', alpha=0.5, linewidth=1, label='Raw Oscillation (Newtonian Noise)')
     
-    # Сглаживаем (скользящее среднее), чтобы увидеть тренд
-    # Окно сглаживания = 1 орбитальный период Меркурия (~0.24 года)
-    window = int((0.24 * 365 * 24 * 3600) / dt) 
-    if window < 1: window = 1
+    # --- Линейная регрессия (Тренд) ---
+    # Используем полином 1-й степени (y = kx + b) для поиска точного наклона
+    slope, intercept = np.polyfit(time_years, delta_angles, 1)
     
-    smoothed = np.convolve(delta_angles, np.ones(window)/window, mode='valid')
-    t_smooth = time_years[window-1:]
+    # Теоретическое значение (Полная прецессия: Юпитер + Венера + Земля + ОТО)
+    THEORY_RATE = 574.1 # arcsec/century
     
-    plt.plot(t_smooth, smoothed, color='white', linewidth=2, label='Average Precession Trend')
+    measured_rate = slope * 100 # переводим в "секунд за столетие"
     
-    # --- ТЕОРИЯ ---
-    # Теоретическая скорость: ~574 угловых секунд в столетие (Ньютон + Эйнштейн)
-    # Если мы моделируем ВСЕ планеты.
-    # Если только Солнце+Меркурий (без Юпитера), то будет 43" в столетие.
+    # Рисуем линию тренда
+    plt.plot(time_years, slope * time_years + intercept, color='#d32f2f', linewidth=2.5, linestyle='-', label='Measured Trend')
     
-    theory_rate = 574.0 # arcsec / 100 years (Full System)
-    # theory_rate = 43.0 # arcsec / 100 years (Only Sun+Mercury)
-    
-    theory_line = t_smooth * (theory_rate / 100.0)
-    plt.plot(t_smooth, theory_line, '--', color='magenta', label=f'Theory ({theory_rate}"/cy)')
+    # Рисуем теоретическую линию (для сравнения)
+    plt.plot(time_years, (THEORY_RATE/100)*time_years, color='#1976d2', linewidth=2, linestyle='--', label=f'Theory ({THEORY_RATE}"/cy)')
 
-    plt.title(f'Mercury Perihelion Shift (Real C, dt={dt}s)')
-    plt.xlabel('Time (Earth Years)')
-    plt.ylabel('Shift (arcseconds)')
-    plt.legend()
-    plt.grid(True, alpha=0.2)
-    plt.savefig('assets/scientific_proof.png')
-    print("Graph saved to assets/scientific_proof.png")
+    # --- Оформление ---
+    plt.title(f'Mercury Perihelion Precession Analysis\n(dt={DT}s)', fontsize=14, pad=15)
+    plt.xlabel('Time (Earth Years)', fontsize=12)
+    plt.ylabel('Perihelion Shift (arcseconds)', fontsize=12)
     
-    # Вывод результата наклона
-    fit_slope = (smoothed[-1] - smoothed[0]) / (t_smooth[-1] - t_smooth[0]) * 100
-    print(f"Measured Precession Rate: {fit_slope:.2f} arcsec/century")
-    print(f"Theoretical Rate: {theory_rate:.2f} arcsec/century")
+    # Информационное окно с цифрами
+    info_text = (
+        f"Measured Rate: {measured_rate:.2f}\"/century\n"
+        f"Theoretical Rate: {THEORY_RATE:.2f}\"/century\n"
+        f"Error: {abs(measured_rate - THEORY_RATE):.2f}\""
+    )
+    plt.gca().text(0.02, 0.95, info_text, transform=plt.gca().transAxes,
+                   fontsize=11, verticalalignment='top',
+                   bbox=dict(boxstyle='round', facecolor='white', alpha=0.9, edgecolor='gray'))
+
+    plt.legend(loc='lower right', frameon=True, facecolor='white', framealpha=1)
+    plt.tight_layout()
+    
+    output_file = 'assets/scientific_proof.png'
+    plt.savefig(output_file)
+    print(f"Graph saved to {output_file}")
+    print(f"--- RESULTS ---")
+    print(info_text)
 
 if __name__ == "__main__":
     analyze_precession()
