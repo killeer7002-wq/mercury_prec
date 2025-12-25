@@ -21,13 +21,21 @@ def NewtonF(pln1: Planet, pln2: Planet) -> npt.NDArray[np.float64]:
   return - G * pln1.mass / (mod(r) ** 3) * r
 
 def EinsteinF(pln1: Planet, pln2: Planet) -> npt.NDArray[np.float64]:
-  if pln1.name != "Sun" or pln2.name != "Mercury":
-    return np.zeros_like(DIM, dtype=np.float64)
-  
-  r_vec = pln2.r - pln1.r
-  r_len = mod(r_vec)
-  
-  return - (3 * G * pln1.mass * (mod(np.cross(pln2.r, pln2.u))**2)) / (C**2 * r_len**5) * r_vec
+    # Считаем только для пары Солнце-Меркурий
+    if pln1.name != "Sun" or pln2.name != "Mercury":
+        return np.zeros_like(DIM, dtype=np.float64)
+    
+    r_vec = pln2.r - pln1.r
+    r_len = mod(r_vec)
+
+    v_vec = pln2.u - pln1.u
+
+    L_vec = np.cross(r_vec, v_vec)
+    L_sq = mod(L_vec)**2
+
+    prefactor = (3 * G * pln1.mass * L_sq) / (C**2 * r_len**5)
+    
+    return - prefactor * r_vec
 
 ###########################
 
@@ -42,15 +50,22 @@ def move_calculate(dt, planets: list[Planet], forces: Forces) -> None:
   for planet in planets:
     planet.u += planet.a * dt / 2
   
+  # 2. Drift (position)
   for planet in planets:
     planet.r += planet.u * dt
-    planet.record_path()
+    # НЕ записываем путь здесь! Ждем обновления скорости.
 
+  # 3. Recalculate forces
   for planet in planets:
     acc_calculate(planet, planets, forces)
 
+  # 4. Second half-kick (velocity)
   for planet in planets:
     planet.u += planet.a * dt / 2
+    
+  # 5. ТЕПЕРЬ, когда r(t+1) и u(t+1) синхронны, сохраняем состояние
+  for planet in planets:
+    planet.record_state()
 
 def save_data(planets: list[Planet], filename: str = "assets/simulation_data.pkl"):
     """Сохраняет список объектов планет в бинарный файл"""
@@ -96,7 +111,7 @@ def main() -> None:
   forces.registrate(EinsteinF)
 
   # dt = 1 час. Для Меркурия это ок, для Нептуна это очень детально.
-  dt = 600 
+  dt = 60 
   t = 0
   total_time = 1.0 * 365 * 24 * 3600 * 2
 

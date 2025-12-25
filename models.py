@@ -31,14 +31,25 @@ class Planet:
     self.name = name
     self.color = color
 
+    # История координат
     self.path_x = [r[0]]
     self.path_y = [r[1]]
-    self.path_z = [r[2]]
+    self.path_z = [r[2]] if r.shape[0] > 2 else [0.0]
+    
+    # История скоростей (ВАЖНО для точности)
+    self.path_vx = [self.u[0]]
+    self.path_vy = [self.u[1]]
+    self.path_vz = [self.u[2]] if self.u.shape[0] > 2 else [0.0]
 
-  def record_path(self):
-      self.path_x.append(self.r[0])
-      self.path_y.append(self.r[1])
-      self.path_z.append(self.r[2])
+  def record_state(self):
+    """Сохраняем мгновенный снимок состояния (позиция + скорость)"""
+    self.path_x.append(self.r[0])
+    self.path_y.append(self.r[1])
+    if self.r.shape[0] > 2: self.path_z.append(self.r[2])
+    
+    self.path_vx.append(self.u[0])
+    self.path_vy.append(self.u[1])
+    if self.u.shape[0] > 2: self.path_vz.append(self.u[2])
 
 class Forces:
   def __init__(self, dim) -> None:
