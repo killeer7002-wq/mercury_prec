@@ -1,15 +1,11 @@
-import pickle
 import numpy as np
 import numpy.typing as npt
 
 from models import Planet, Forces
 from ephemeris import get_j2000_state
+from utils import save_data
 
-G = 6.674e-11
-C = 299.8e6
-M_SUN = 1.989e30
-AU = 1.496e11
-DIM = np.array([0, 0, 0])
+from consts import *
 
 def mod(arr: npt.NDArray[np.float64]) -> np.float64:
   return np.float64(np.linalg.norm(arr))
@@ -67,12 +63,6 @@ def move_calculate(dt, planets: list[Planet], forces: Forces) -> None:
   for planet in planets:
     planet.record_state()
 
-def save_data(planets: list[Planet], filename: str = "assets/simulation_data.pkl"):
-    """Сохраняет список объектов планет в бинарный файл"""
-    with open(filename, 'wb') as f:
-        pickle.dump(planets, f)
-    print(f"Data successfully saved to {filename}")
-
 def main() -> None:
   planets_names = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
   colors = ["gray", "yellow", "blue", "red", "orange", "gold", "lightblue", "darkblue"]
@@ -111,9 +101,8 @@ def main() -> None:
   forces.registrate(EinsteinF)
 
   # dt = 1 час. Для Меркурия это ок, для Нептуна это очень детально.
-  dt = 60 
   t = 0
-  total_time = 1.0 * 365 * 24 * 3600 * 2
+  total_time = 1.0 * 365 * 24 * 3600 * 20
 
   print(f"Start simulation: {total_time/3600/24/365:.2f} Earth years...")
 
@@ -122,13 +111,13 @@ def main() -> None:
       acc_calculate(planet, all_planets, forces)
       
   # Основной цикл
-  steps = int(total_time / dt)
+  steps = int(total_time / DT)
   check_interval = steps // 10 # Вывод прогресса 10 раз за симуляцию
   
   step_count = 0
   while t < total_time:
-      move_calculate(dt, all_planets, forces)
-      t += dt
+      move_calculate(DT, all_planets, forces)
+      t += DT
       step_count += 1
       if step_count % check_interval == 0:
           print(f"Progress: {int(t/total_time*100)}%")

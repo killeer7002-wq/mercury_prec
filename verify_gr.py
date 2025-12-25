@@ -1,18 +1,8 @@
-import pickle
+from utils import load_data
 import numpy as np
 import matplotlib.pyplot as plt
 from models import Planet
-
-# Константы
-DT = 60 # Должно совпадать с simulation.py!
-G = 6.6743e-11
-M_SUN = 1.989e30
-ARCSEC_PER_RAD = 206264.8
-
-def load_data(filename: str = "assets/simulation_data.pkl") -> list[Planet]:
-    with open(filename, 'rb') as f:
-        planets = pickle.load(f)
-    return planets
+from consts import *
 
 def get_relative_vectors(mercury, sun):
     """

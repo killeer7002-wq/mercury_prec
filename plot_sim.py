@@ -1,4 +1,4 @@
-import pickle
+from utils import load_data
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -6,12 +6,6 @@ from models import Planet
 from visualizer import animate_orbits
 
 __all__ = ["plot"]
-
-def load_data(filename: str = "assets/simulation_data.pkl") -> list[Planet]:
-    with open(filename, 'rb') as f:
-        planets = pickle.load(f)
-    print(f"Loaded {len(planets)} planets from {filename}")
-    return planets
 
 def plot_static(planets: list[Planet], filename: str = "./assets/sim.png") -> None:
   plt.figure(figsize=(8, 8))
