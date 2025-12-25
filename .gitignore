@@ -1,4 +1,5 @@
 .*
+*.pkl
 !.gitignore
 __pycache__
 *.gif

@@ -36,14 +36,14 @@ def plot(all_planets: list[Planet],
   # ВАЖНО: Для анимации берем только внутренние планеты + Юпитер.
   # Если рисовать Нептун, Меркурий станет невидимым из-за зума.
   # Индексы: 0-Sun, 1-Mercury, 2-Venus, 3-Earth, 4-Mars, 5-Jupiter
-  inner_system = all_planets[:2] 
+  inner_system = all_planets[:6] 
   
   print(f"Rendering animation for Inner Solar System: {", ".join([pln.name for pln in inner_system])}")
   animate_orbits(
       inner_system, 
       filename=filename_gif, 
-      fps=120, 
-      stride=24 * 5,   # Берем кадр раз в сутки (так как dt=1 час)
+      fps=30, 
+      stride=24 * 40,   # Берем кадр раз в сутки (так как dt=1 час)
       trace_length=400
   )
 

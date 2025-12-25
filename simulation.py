@@ -4,7 +4,6 @@ import numpy.typing as npt
 
 from models import Planet, Forces
 from ephemeris import get_j2000_state
-from plot_sim import plot
 
 G = 6.674e-11
 C = 299.8e6
@@ -97,11 +96,9 @@ def main() -> None:
   forces.registrate(EinsteinF)
 
   # dt = 1 час. Для Меркурия это ок, для Нептуна это очень детально.
-  dt = 3600 
+  dt = 600 
   t = 0
-  # Симулируем 1 Земной год (Меркурий успеет сделать ~4 оборота)
-  # Если поставить больше, расчет будет идти дольше
-  total_time = 1.0 * 365 * 24 * 3600 * 10
+  total_time = 1.0 * 365 * 24 * 3600 * 2
 
   print(f"Start simulation: {total_time/3600/24/365:.2f} Earth years...")
 
@@ -124,9 +121,6 @@ def main() -> None:
   print("Simulation finished.")
 
   save_data(all_planets)
-  
-  # --- Визуализация ---
-  plot(all_planets)
 
 if __name__ == "__main__":
   main()

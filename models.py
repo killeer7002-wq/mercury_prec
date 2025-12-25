@@ -33,10 +33,12 @@ class Planet:
 
     self.path_x = [r[0]]
     self.path_y = [r[1]]
+    self.path_z = [r[2]]
 
   def record_path(self):
       self.path_x.append(self.r[0])
       self.path_y.append(self.r[1])
+      self.path_z.append(self.r[2])
 
 class Forces:
   def __init__(self, dim) -> None:
