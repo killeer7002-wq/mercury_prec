@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from models import Planet
 from consts import *
+import sys
 
 def get_relative_vectors(mercury, sun):
     """
@@ -24,7 +25,12 @@ def get_relative_vectors(mercury, sun):
     return r_rel, v_rel
 
 def analyze_precession():
-    planets = load_data_binary("assets/data_bin")
+    if len(sys.argv) == 1:
+      planets = load_data_binary("assets/data_bin")
+    else:
+      planets = load_data_binary(f"assets/{sys.argv[1]}")
+    if len(sys.argv) == 4:
+      DT = float(sys.argv[3])
     mercury = next(p for p in planets if p.name == "Mercury")
     sun = next(p for p in planets if p.name == "Sun")
     
@@ -82,7 +88,10 @@ def analyze_precession():
                    bbox=dict(facecolor='white', alpha=0.9, edgecolor='gray'))
 
     print("Saving plot...")
-    plt.savefig('assets/scientific_proof.png')
+    if len(sys.argv) == 1:
+      plt.savefig('assets/scientific_proof.png')
+    else:
+      plt.savefig(f'assets/{sys.argv[2]}.png')
     print("Graph saved.")
 
 if __name__ == "__main__":
