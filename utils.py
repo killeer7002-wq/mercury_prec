@@ -4,64 +4,82 @@ import os
 import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from models import Planet
+from typing import Iterable, Optional
 
 # --- НОВАЯ БИНАРНАЯ ЛОГИКА ---
 
-def load_data_binary(folder: str = "assets/data_bin") -> list[Planet]:
+def load_data_binary(
+    folder: str = "assets/data_bin",
+    include: Optional[Iterable[str]] = None,
+    exclude: Optional[Iterable[str]] = None,
+) -> list[Planet]:
     """
-    Загружает данные из .npy.
-    Использует Memory Mapping (mmap), поэтому работает мгновенно 
-    и не тратит оперативную память, даже если файл весит 100 ГБ.
+    Загружает данные из .npy через mmap.
+    include/exclude — фильтрация по именам планет (чтобы не собирать лишние Planet).
     """
     manifest_path = os.path.join(folder, "system_manifest.json")
     if not os.path.exists(manifest_path):
         raise FileNotFoundError(f"Manifest not found: {manifest_path}")
 
     print(f"Loading binary data from {folder} (mmap mode)...")
-    
-    # 1. Загружаем метаданные
-    with open(manifest_path, 'r', encoding='utf-8') as f:
-        metadata = json.load(f)
-    
-    # 2. Открываем бинарные файлы в режиме 'только чтение' (как виртуальную память)
-    # Формат на диске: (Planets, Steps, 3)
+
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        manifest = json.load(f)
+
+    # Backward/forward compatible schema:
+    # - old: manifest is list[planet_meta]
+    # - new: manifest is dict with key "planets"
+    if isinstance(manifest, dict):
+        metadata = manifest.get("planets", [])
+    else:
+        metadata = manifest
+
+    if not isinstance(metadata, list) or not metadata:
+        raise ValueError("Bad manifest format: expected list of planets metadata.")
+
+    include_set = set(include) if include is not None else None
+    exclude_set = set(exclude) if exclude is not None else None
+
+    # mmap arrays: shape (Planets, Steps, 3)
     try:
-        hist_pos = np.load(os.path.join(folder, "positions.npy"), mmap_mode='r')
-        hist_vel = np.load(os.path.join(folder, "velocities.npy"), mmap_mode='r')
+        hist_pos = np.load(os.path.join(folder, "positions.npy"), mmap_mode="r")
+        hist_vel = np.load(os.path.join(folder, "velocities.npy"), mmap_mode="r")
     except FileNotFoundError:
         raise FileNotFoundError("Binary .npy files missing! Run simulation first.")
 
-    planets = []
-    
-    # 3. Собираем объекты
+    planets: list[Planet] = []
     for i, meta in enumerate(metadata):
-        # Восстанавливаем параметры планеты
-        r_init = np.array(meta.get("last_r", [0,0,0]), dtype=np.float64)
-        u_init = np.array(meta.get("last_u", [0,0,0]), dtype=np.float64)
-        
+        name = meta["name"]
+
+        if include_set is not None and name not in include_set:
+            continue
+        if exclude_set is not None and name in exclude_set:
+            continue
+
+        r_init = np.array(meta.get("last_r", [0, 0, 0]), dtype=np.float64)
+        u_init = np.array(meta.get("last_u", [0, 0, 0]), dtype=np.float64)
+
         p = Planet(
             mass=meta["mass"],
-            r=r_init, # Это конечное положение, но для анализа пойдет
+            r=r_init,
             u=u_init,
-            name=meta["name"],
-            color=meta["color"]
+            name=name,
+            color=meta["color"],
         )
-        
-        # ВАЖНО: Вместо списков подсовываем срезы numpy-массива.
-        # Это не копирует данные! Это просто ссылки на файл.
-        # p.path_x теперь ведет себя как очень длинный массив.
+
+        # mmap views (NO COPY)
         p.path_x = hist_pos[i, :, 0]
         p.path_y = hist_pos[i, :, 1]
         p.path_z = hist_pos[i, :, 2]
-        
         p.path_vx = hist_vel[i, :, 0]
         p.path_vy = hist_vel[i, :, 1]
         p.path_vz = hist_vel[i, :, 2]
-        
+
         planets.append(p)
-        
+
     print(f"Loaded {len(planets)} planets.")
     return planets
+
 
 def save_data_binary(planets_meta: list[dict], hist_pos: np.ndarray, hist_vel: np.ndarray, folder: str = "assets/data_bin"):
     """
