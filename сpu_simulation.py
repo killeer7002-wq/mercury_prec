@@ -2,7 +2,6 @@ import numpy as np
 from numba import njit
 import time
 import sys
-import os
 
 from models import Planet
 from ephemeris import get_j2000_state
