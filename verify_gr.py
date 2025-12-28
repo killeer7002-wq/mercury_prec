@@ -1,3 +1,6 @@
+"""This script analyzes the simulation data to verify the general relativistic
+precession of Mercury's perihelion. It compares the measured precession rate
+from the simulation with the theoretical value."""
 from utils import load_data_binary
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,16 +10,24 @@ import sys
 
 def get_relative_vectors(mercury, sun):
     """
-    Берем сохраненные точные данные из симуляции.
-    Больше никаких np.gradient!
+    Calculates the relative position and velocity vectors of Mercury with respect to the Sun.
+
+    Args:
+        mercury (Planet): The Mercury planet object.
+        sun (Planet): The Sun planet object.
+
+    Returns:
+        tuple: A tuple containing:
+            - r_rel (np.ndarray): The relative position vectors.
+            - v_rel (np.ndarray): The relative velocity vectors.
     """
-    # 1. Позиции
+    # 1. Positions
     rx_m, ry_m, rz_m = np.array(mercury.path_x), np.array(mercury.path_y), np.array(mercury.path_z)
     rx_s, ry_s, rz_s = np.array(sun.path_x), np.array(sun.path_y), np.array(sun.path_z)
     
     r_rel = np.stack([rx_m - rx_s, ry_m - ry_s, rz_m - rz_s], axis=1)
 
-    # 2. Скорости (Берем напрямую из истории!)
+    # 2. Velocities (from history)
     vx_m, vy_m, vz_m = np.array(mercury.path_vx), np.array(mercury.path_vy), np.array(mercury.path_vz)
     vx_s, vy_s, vz_s = np.array(sun.path_vx), np.array(sun.path_vy), np.array(sun.path_vz)
     
@@ -24,13 +35,16 @@ def get_relative_vectors(mercury, sun):
     
     return r_rel, v_rel
 
-def analyze_precession():
-    if len(sys.argv) == 1:
-      planets = load_data_binary("assets/data_bin")
-    else:
-      planets = load_data_binary(f"assets/{sys.argv[1]}")
-    if len(sys.argv) == 4:
-      DT = float(sys.argv[3])
+def analyze_precession(folder="assets/data_bin", output_filename="assets/scientific_proof.png", dt_sim=DT):
+    """
+    Analyzes the precession of Mercury's perihelion.
+
+    Args:
+        folder (str, optional): The folder containing the simulation data. Defaults to "assets/data_bin".
+        output_filename (str, optional): The path to save the output plot. Defaults to "assets/scientific_proof.png".
+        dt_sim (float, optional): The simulation time step. Defaults to the value from consts.py.
+    """
+    planets = load_data_binary(folder)
     mercury = next(p for p in planets if p.name == "Mercury")
     sun = next(p for p in planets if p.name == "Sun")
     
@@ -38,23 +52,25 @@ def analyze_precession():
     
     r, v = get_relative_vectors(mercury, sun)
     
-    # Вектор эксцентриситета
+    # Eccentricity vector
     dist = np.linalg.norm(r, axis=1)[:, np.newaxis]
     h = np.cross(r, v)
     v_cross_h = np.cross(v, h)
     e_vecs = (v_cross_h / (G * M_SUN)) - (r / dist)
     
-    # Угол перигелия
+    # Angle of perihelion
     angles_rad = np.arctan2(e_vecs[:, 1], e_vecs[:, 0])
     angles_unwrap = np.unwrap(angles_rad)
     
     delta_angles = (angles_unwrap - angles_unwrap[0]) * ARCSEC_PER_RAD
-    time_years = np.arange(len(delta_angles)) * DT / (365.25*24*3600)
+    time_years = np.arange(len(delta_angles)) * dt_sim / (365.25*24*3600)
     
-    # Статистика
+    # Statistics
     slope, intercept = np.polyfit(time_years, delta_angles, 1)
     
-    measured_rate = slope * 100
+    measured_rate = slope * 100 # arcsec/century
+    # The theoretical rate of 574.10 arcsec/century is the sum of contributions from all planets and GR.
+    # The GR contribution alone is about 43 arcsec/century.
     theory_rate = 574.10 
     
     print("\n" + "="*40)
@@ -63,16 +79,16 @@ def analyze_precession():
     print(f" ERROR:               {abs(measured_rate - theory_rate):.2f} arcsec/cy")
     print("="*40 + "\n")
 
-    # График
+    # Plotting
     plt.style.use('default')
     plt.figure(figsize=(10, 6), dpi=100)
     plt.grid(True, linestyle='--', alpha=0.5)
     
-    # ОПТИМИЗАЦИЯ 1: Рисуем каждую 100-ю точку для "шума", иначе виснет
+    # Optimization 1: Plot every 100th point for the noisy data
     step = 100 
     plt.plot(time_years[::step], delta_angles[::step], color='gray', alpha=0.3, label='Oscillation')
     
-    # Линии тренда рисуем целиком (они прямые, там всего 2 точки по сути)
+    # Plot trend lines
     plt.plot(time_years, slope * time_years + intercept, color='red', linewidth=2, label='Simulation')
     plt.plot(time_years, (theory_rate/100)*time_years + intercept, color='blue', linestyle='--', label='Theory')
 
@@ -80,7 +96,7 @@ def analyze_precession():
     plt.xlabel('Time (Years)')
     plt.ylabel('Shift (arcsec)')
     
-    # ОПТИМИЗАЦИЯ 2: Явно задаем место легенды, чтобы не искал "best"
+    # Optimization 2: Explicitly set legend location
     plt.legend(loc='upper left') 
     
     info = f"Result: {measured_rate:.1f}\"/cy\nTarget: {theory_rate:.1f}\"/cy"
@@ -88,11 +104,18 @@ def analyze_precession():
                    bbox=dict(facecolor='white', alpha=0.9, edgecolor='gray'))
 
     print("Saving plot...")
-    if len(sys.argv) == 1:
-      plt.savefig('assets/scientific_proof.png')
-    else:
-      plt.savefig(f'assets/{sys.argv[2]}.png')
+    plt.savefig(output_filename)
     print("Graph saved.")
 
 if __name__ == "__main__":
-    analyze_precession()
+    folder_arg = sys.argv[1] if len(sys.argv) > 1 else "assets/data_bin"
+    output_arg = sys.argv[2] if len(sys.argv) > 2 else "assets/scientific_proof.png"
+    dt_arg = float(sys.argv[3]) if len(sys.argv) > 3 else DT
+    
+    if not output_arg.endswith('.png'):
+        output_arg = f"assets/{output_arg}.png"
+        
+    if not folder_arg.startswith('assets/'):
+        folder_arg = f"assets/{folder_arg}"
+
+    analyze_precession(folder=folder_arg, output_filename=output_arg, dt_sim=dt_arg)
