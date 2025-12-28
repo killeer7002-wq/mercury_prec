@@ -71,7 +71,7 @@ def analyze_precession(folder="assets/data_bin", output_filename="assets/scienti
     measured_rate = slope * 100 # arcsec/century
     # The theoretical rate of 574.10 arcsec/century is the sum of contributions from all planets and GR.
     # The GR contribution alone is about 43 arcsec/century.
-    theory_rate = 574.10 
+    theory_rate = float(sys.argv[4]) if len(sys.argv) > 4 else 574.10
     
     print("\n" + "="*40)
     print(f" MEASURED PRECESSION: {measured_rate:.2f} arcsec/cy")
@@ -108,7 +108,7 @@ def analyze_precession(folder="assets/data_bin", output_filename="assets/scienti
     print("Graph saved.")
 
 if __name__ == "__main__":
-    folder_arg = sys.argv[1] if len(sys.argv) > 1 else "assets/data_bin"
+    folder_arg = sys.argv[1] if len(sys.argv) > 1 else "data_bin"
     output_arg = sys.argv[2] if len(sys.argv) > 2 else "assets/scientific_proof.png"
     dt_arg = float(sys.argv[3]) if len(sys.argv) > 3 else DT
     
