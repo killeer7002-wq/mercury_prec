@@ -4,6 +4,7 @@
 [![Physics](https://img.shields.io/badge/Physics-General%20Relativity-purple)]()
 [![CUDA](https://img.shields.io/badge/Rendering-CUDA%20Interop-76B900?logo=nvidia&logoColor=white)]()
 [![HPC](https://img.shields.io/badge/HPC-Numba%20JIT-orange)]()
+[![Paper](https://img.shields.io/badge/PDF-Read%20Full%20Paper-red?style=flat-square&logo=adobe-acrobat-reader)](./docs/%20Relativistic_Solar_System_N-Body_Simulation_and_Verification.pdf)
 
 > **Фундаментальный физический эксперимент *in silico*:** Прямая численная симуляция гравитационной эволюции Солнечной системы на отрезке **60 000 лет** для верификации эффектов Общей Теории Относительности (ОТО).
 
@@ -88,6 +89,8 @@ $$\vec{a}_{GR} = - \frac{3GM l^2}{c^2 r^5} \vec r$$
 Для анализа прецессии вычисляется **вектор Рунге—Ленца** (вектор эксцентриситета) на каждом шаге:
 $$\vec e = \frac{\vec v\times \vec h}{GM_\odot} - \frac{\vec r}{r}$$
 Угол перигелия $\varpi(t)$ определяется как аргумент этого вектора.
+
+**Примечание:** Полный математический вывод уравнений движения и детальное обоснование выбора численных методов приведены в **[полном докладе](./docs/%20Relativistic_Solar_System_N-Body_Simulation_and_Verification.pdf)**
 
 ---
 
